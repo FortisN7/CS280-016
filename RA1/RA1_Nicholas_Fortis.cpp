@@ -13,6 +13,6 @@ int main() {
     cin >> firstName;
     cout << "Please enter your last name" << endl;
     cin >> lastName;
-    cout << "Welcome " + firstName + " " + lastName + " to CS 280";
+    cout << "Welcome " + firstName + " " + lastName + " to CS 280" << endl;
     return 0;
 }
