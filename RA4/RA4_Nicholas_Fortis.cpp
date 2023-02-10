@@ -15,23 +15,56 @@ bool isSpecialName(string word) {
         return false;
     }
 }
+
 bool isInteger(string word) {
-
+    if ((word[0] == '+' && isdigit(word[1]) == true) || (word[0] == '-' && isdigit(word[1]) == true) || (isdigit(word[0]) == true)) {
+        for (int i = 1; i < word.length(); i++) {
+            if (isdigit(word[i]) != true) {
+                return false;
+            }
+        }
+        return true;
+    }
+    else {
+        return false;
+    }
 }
-bool isReal(string word) {
 
+bool isReal(string word) {
+    int decimalCounter = 0;
+
+    if ((word[0] == '+' && isdigit(word[1]) == true) || (word[0] == '-' && isdigit(word[1]) == true) || (isdigit(word[0]) == true)) {
+        for (int i = 1; i < word.length(); i++) {
+            if (word[i] == '.') {
+                decimalCounter++;
+            }
+            if ((isdigit(word[i]) != true  && word[i] != '.') || decimalCounter > 1) {
+                return false;
+            }
+        }
+    }
+
+    if (decimalCounter == 1 && isdigit(word[word.length()-1])) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
+    return false;
 }
 
 int main(int argc, char *argv[]) {
     string fileName, line, word;
     ifstream fin;
     int wordCounter = 0;
+    int lineCounter = 0;
     int integerCounter = 0;
     int realCounter = 0;
     int specialNamesCounter = 0;
     map<string, int> specialNamesMap;
-    map<string, int> integerMap;
-    map<string, int> realMap;
+    map<int, int> integerMap;
+    map<float, int> realMap;
     
     if (argc < 2) {
         cerr << "NO SPECIFIED INPUT FILE NAME." << endl;
@@ -47,33 +80,48 @@ int main(int argc, char *argv[]) {
 
     while (fin.good()) {
         getline(fin, line);
+        lineCounter++;
         istringstream iss(line);
         while (iss >> word) {
             if (isSpecialName(word)) {
                 specialNamesCounter++;
                 if (specialNamesMap.find(word) == specialNamesMap.end()) {
-                    specialNamesMap[word]+=1;
+                    specialNamesMap[word] = 1;
                 }
                 else {
-                    specialNamesMap[word] = 1;
+                    specialNamesMap[word]++;
                 }
             }
             if (isInteger(word)) {
                 integerCounter++;
-                if (integerMap.find(word) == integerMap.end()) {
-                    integerMap[word]+=1;
+                if (word[0] == '+') {
+                    word = word.substr(1,word.length());
+                }
+                int intWord;
+                stringstream ss;
+                ss << word;
+                ss >> intWord;
+                if (integerMap.find(intWord) == integerMap.end()) {
+                    integerMap[intWord] = 1;
                 }
                 else {
-                    integerMap[word] = 1;
+                    integerMap[intWord]++;
                 }
             }
             if (isReal(word)) {
                 realCounter++;
-                if (realMap.find(word) == realMap.end()) {
-                    realMap[word]+=1;
+                if (word[0] == '+') {
+                    word = word.substr(1,word.length());
+                }
+                if (isdigit(word[word.length()-2]) == true && word[word.length()-1] == '0') {
+                    word = word.substr(0, word.length()-1);
+                }
+                float floatWord = stof(word);
+                if (realMap.find(floatWord) == realMap.end()) {
+                    realMap[floatWord] = 1;
                 }
                 else {
-                    realMap[word] = 1;
+                    realMap[floatWord]++;
                 }
             }
 
@@ -81,7 +129,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (wordCounter == 0) {
+    if (wordCounter == 0 && lineCounter == 1) {
         cout << "File is empty." << endl;
         return 1;
     }
@@ -89,21 +137,33 @@ int main(int argc, char *argv[]) {
         cout << "Number of integers in the file: " << integerCounter << endl;
         cout << "Number of reals in the file: " << realCounter << endl;
         cout << "Number of special names in the file: " << specialNamesCounter << endl;
-        cout << endl;
-        map<string, int>::iterator it;
-        cout << "List of integer values and their number of occurrences: " << endl;
-        for (it = integerMap.begin(); it != integerMap.end(); it++) {
-            cout << it->first << ": " << it->second << endl;
+        if (integerMap.empty() == false || specialNamesMap.empty() == false || realMap.empty() == false) {
+            cout << endl;
         }
-        
-        cout << "List of real values and their number of occurrences: " << endl;
-        for (it = realMap.begin(); it != realMap.end(); it++) {
-            cout << it->first << ": " << it->second << endl;
+
+        if (integerMap.empty() == false) {
+            cout << "List of integer values and their number of occurrences:" << endl;
+            for (map<int, int>::iterator it = integerMap.begin(); it != integerMap.end(); it++) {
+                cout << it->first << ": " << it->second << endl;
+            }
+            if (specialNamesMap.empty() == false || realMap.empty() == false) {
+                cout << endl;
+            }
         }
-        
-        cout << "List of special names and their number of occurrences: " << endl;
-        for (it = specialNamesMap.begin(); it != specialNamesMap.end(); it++) {
-            cout << it->first << ": " << it->second << endl;
+        if (realMap.empty() == false) {
+            cout << "List of real values and their number of occurrences:" << endl;
+            for (map<float, int>::iterator it = realMap.begin(); it != realMap.end(); it++) {
+                cout << it->first << ": " << it->second << endl;
+            }
+            if (specialNamesMap.empty() == false) {
+                cout << endl;
+            }
+        }
+        if (specialNamesMap.empty() == false) {
+            cout << "List of special names and their number of occurrences:" << endl;
+            for (map<string, int>::iterator it = specialNamesMap.begin(); it != specialNamesMap.end(); it++) {
+                cout << it->first << ": " << it->second << endl;
+            }
         }
     }
 
