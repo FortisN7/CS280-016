@@ -25,9 +25,9 @@ LexItem getNextToken(istream& in, int& linenum) {
             else if (ch == '@' || ch == '$' || isalpha(ch) || ch == '_') {
                 lexstate = INID;
             }
-            //else if (isalpha(ch) || ch == '_') {
-                
-            //}
+            /*else if (isalpha(ch) || ch == '_') {
+                // logic for INID
+            }*/
             else if (isdigit(ch)) {
                 lexstate = ININT;
             }
@@ -123,7 +123,6 @@ LexItem getNextToken(istream& in, int& linenum) {
                     return LexItem(ICONST, lexeme, linenum);
                 }
             }
-            break;
         case INREAL:
             while(in.get(ch)) {
                 if (isdigit(ch)) {
@@ -134,6 +133,7 @@ LexItem getNextToken(istream& in, int& linenum) {
                     return LexItem(ERR, lexeme, linenum);
                 }
                 else {
+                    in.putback(ch);
                     lexstate = START;
                     return LexItem(RCONST, lexeme, linenum);
                 }
@@ -141,10 +141,11 @@ LexItem getNextToken(istream& in, int& linenum) {
             break;
         case INID:
             while(in.get(ch)) {               
-                if (isalpha(ch) || ) { //add more conditions
-                    
+                if (isalpha(ch) || isdigit(ch) || ch == '_') { //add more conditions
+                    lexeme += ch;
                 }
                 else {
+                    in.putback(ch);
                     return id_or_kw(lexeme, linenum);
                 }
             }
@@ -179,15 +180,15 @@ LexItem id_or_kw(const string& lexeme, int linenum) {
         token = IDENT;
     }
 
-    transform(lexeme.begin(), lexeme.end(), lexeme.begin(), ::toupper);
-    cout << lexeme;
+    string testLexeme = lexeme;
+    transform(testLexeme.begin(), testLexeme.end(), testLexeme.begin(), ::toupper);
 
     map<string, Token> maps = {
         {"WRITELN", WRITELN}, {"IF", IF}, {"ELSE", ELSE}
     };
     map<string, Token>::iterator it;
     for(it = maps.begin(); it != maps.end(); it++) {
-        if (maps.count(lexeme) > 0)
+        if (maps.count(testLexeme) > 0)
             return LexItem(maps[lexeme], lexeme, linenum);
     }
     return LexItem(token, lexeme, linenum);
@@ -212,23 +213,23 @@ ostream& operator<<(ostream& out, const LexItem& tok) {
             break;
         // Identifiers
         case IDENT:
-            return out << "IDENT(" << lexeme << ")" << endl;
+            return out << "IDENT (" << lexeme << ")" << endl;
             break;
         case NIDENT:
-            return out << "NIDENT(" << lexeme << ")" << endl;            
+            return out << "NIDENT (" << lexeme << ")" << endl;            
             break;
         case SIDENT:
-            return out << "SIDENT(" << lexeme << ")" << endl;            
+            return out << "SIDENT (" << lexeme << ")" << endl;            
             break;
         // Constants
         case ICONST:
-            return out << "ICONST(" << lexeme << ")" << endl;            
+            return out << "ICONST (" << lexeme << ")" << endl;            
             break;
         case RCONST:
-            return out << "RCOSNT(" << lexeme << ")" << endl;            
+            return out << "RCOSNT (" << lexeme << ")" << endl;            
             break;
         case SCONST:
-            return out << "SCONST(" << lexeme << ")" << endl;            
+            return out << "SCONST '" << lexeme << "'" << endl;            
             break;
         // Operators
         case PLUS:
