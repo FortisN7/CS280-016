@@ -7,32 +7,38 @@ Token token;
 LexItem getNextToken(istream& in, int& linenum) {
     enum TokState {START, ININT, INREAL, INID, INSTRING} lexstate = START;
     string lexeme;
+    string testLexeme;
     char ch;
     string line;
     char peek;
     char peek2;
     while(in.get(ch)) {
-        lexeme = ch;
         switch(lexstate) {
         case START:
-            if (ch == '#') {               
-                getline(in, line);
+            lexeme = ch;
+            if (ch == '\n' || ch == '\r') {
+                linenum++;
                 break;
             }
-            else if (ch == ' ') {
+            else if (ch == '#') {               
+                getline(in, line);
+                linenum++;
+                break;
+            }
+            else if (ch == ' ' || ch == '\t') {
                 break;
             }
             else if (ch == '@' || ch == '$' || isalpha(ch) || ch == '_') {
                 lexstate = INID;
+                break;
             }
-            /*else if (isalpha(ch) || ch == '_') {
-                // logic for INID
-            }*/
             else if (isdigit(ch)) {
                 lexstate = ININT;
+                break;
             }
             else if (ch == '\'') {
                 lexstate = INSTRING;
+                break;
             }
             else if (ch == '+') {
                 return LexItem(PLUS, lexeme, linenum);
@@ -41,18 +47,27 @@ LexItem getNextToken(istream& in, int& linenum) {
                 peek = in.get();
                 peek2 = in.peek();
                 if (isalpha(peek) && isalpha(peek2)) {
-                    lexeme = (tolower(ch) + tolower(peek) + tolower(peek2));
-                    if (lexeme == "-eq") {
+                    testLexeme = ch;
+                    testLexeme += tolower(peek);
+                    testLexeme += tolower(peek2);
+                    if (testLexeme == "-eq") {
+                        lexeme = (ch + peek + peek2);
+                        in.get();
                         return LexItem(SEQ, lexeme, linenum);
                     }
-                    else if (lexeme == "-lt") {
+                    else if (testLexeme == "-lt") {
+                        lexeme = (ch + peek + peek2);
+                        in.get();
                         return LexItem(SLTHAN, lexeme, linenum);
                     }
-                    else if (lexeme == "-gt") {
+                    else if (testLexeme == "-gt") {
+                        lexeme = (ch + peek + peek2);
+                        in.get();
                         return LexItem(SGTHAN, lexeme, linenum);
                     }
                     else {
-                        return LexItem(ERR, lexeme, linenum);
+                        in.putback(peek);
+                        return LexItem(MINUS, lexeme, linenum);
                     }
                 }
                 else {
@@ -64,6 +79,7 @@ LexItem getNextToken(istream& in, int& linenum) {
                 peek = in.peek();
                 if (peek == '*') {
                     lexeme = (ch + peek); // "**"
+                    in.get();
                     return LexItem(SREPEAT, lexeme, linenum);
                 }
                 return LexItem(MULT, lexeme, linenum);
@@ -78,6 +94,7 @@ LexItem getNextToken(istream& in, int& linenum) {
                 peek = in.peek();
                 if (peek == '=') {
                     lexeme = (ch + peek); // "=="
+                    in.get();
                     return LexItem(NEQ, lexeme, linenum);
                 }
                 return LexItem(ASSOP, lexeme, linenum);
@@ -97,6 +114,9 @@ LexItem getNextToken(istream& in, int& linenum) {
             else if (ch == '>') {
                 return LexItem(NGTHAN, lexeme, linenum);
             }
+            else if (ch == '<') {
+                return LexItem(NLTHAN, lexeme, linenum);
+            }
             else if (ch == '.') {
                 return LexItem(CAT, lexeme, linenum);
             }
@@ -109,6 +129,18 @@ LexItem getNextToken(istream& in, int& linenum) {
             //break;
             return LexItem(ERR, lexeme, linenum);
         case ININT:
+            if (isdigit(ch)) {
+                    lexeme += ch;
+            }
+            else if (ch == '.') {
+                lexeme += ch;
+                lexstate = INREAL;
+                break;
+            }
+            else {
+                in.putback(ch);
+                return LexItem(ICONST, lexeme, linenum);
+            }
             while(in.get(ch)) {
                 if (isdigit(ch)) {
                     lexeme += ch;
@@ -123,7 +155,19 @@ LexItem getNextToken(istream& in, int& linenum) {
                     return LexItem(ICONST, lexeme, linenum);
                 }
             }
+            break;
         case INREAL:
+            if (isdigit(ch)) {
+                    lexeme += ch;
+            }
+            else if (ch == '.') {
+                lexeme += ch;                
+                return LexItem(ERR, lexeme, linenum);
+            }
+            else {
+                in.putback(ch);
+                return LexItem(RCONST, lexeme, linenum);
+            }
             while(in.get(ch)) {
                 if (isdigit(ch)) {
                     lexeme += ch;
@@ -134,14 +178,20 @@ LexItem getNextToken(istream& in, int& linenum) {
                 }
                 else {
                     in.putback(ch);
-                    lexstate = START;
                     return LexItem(RCONST, lexeme, linenum);
                 }
             }
             break;
         case INID:
+            if (isalnum(ch) || ch == '_') {
+                lexeme += ch;
+            }
+            else {
+                in.putback(ch);
+                return id_or_kw(lexeme, linenum);
+            }
             while(in.get(ch)) {               
-                if (isalpha(ch) || isdigit(ch) || ch == '_') { //add more conditions
+                if (isalnum(ch) || ch == '_') {
                     lexeme += ch;
                 }
                 else {
@@ -151,18 +201,31 @@ LexItem getNextToken(istream& in, int& linenum) {
             }
             break;     
         case INSTRING:
-            while(in.get(ch)) {
+            if (ch != '\n') {
                 lexeme += ch;
+            }
+            if (ch == '\'') {
+                return LexItem(SCONST, lexeme, linenum);
+            }
+            else if (ch == '\n') {
+                return LexItem(ERR, lexeme, linenum);
+            }
+            while(in.get(ch)) {
+                if (ch != '\n') {
+                    lexeme += ch;
+                }
                 if (ch == '\'') {
+                    lexeme.erase(remove(lexeme.begin(), lexeme.end(), '\''), lexeme.end()); //remove ' from string
                     return LexItem(SCONST, lexeme, linenum);
                 }
-                else if (ch == '\n') { // Might have to add || ch == '\"'
+                else if (ch == '\n') {
                     return LexItem(ERR, lexeme, linenum);
                 }
             }
             break;
         // Insert here if more states are needed
         }
+        
     }
     return LexItem(DONE, lexeme, linenum);
 }
@@ -180,15 +243,12 @@ LexItem id_or_kw(const string& lexeme, int linenum) {
         token = IDENT;
     }
 
-    string testLexeme = lexeme;
-    transform(testLexeme.begin(), testLexeme.end(), testLexeme.begin(), ::toupper);
-
     map<string, Token> maps = {
-        {"WRITELN", WRITELN}, {"IF", IF}, {"ELSE", ELSE}
+        {"writeln", WRITELN}, {"if", IF}, {"else", ELSE}
     };
     map<string, Token>::iterator it;
     for(it = maps.begin(); it != maps.end(); it++) {
-        if (maps.count(testLexeme) > 0)
+        if (maps.count(lexeme) > 0)
             return LexItem(maps[lexeme], lexeme, linenum);
     }
     return LexItem(token, lexeme, linenum);
@@ -203,33 +263,33 @@ ostream& operator<<(ostream& out, const LexItem& tok) {
     switch(toks) {
         // Keywords
         case WRITELN:
-            return out << "WRITELN: \"" << lexeme << "\" at Line " << line << endl;
+            return out << "WRITELN" << endl;
             break;
         case IF:
-            return out << "IF: \"" << lexeme << "\" at Line " << line << endl;
+            return out << "IF" << endl;
             break;
         case ELSE:
-            return out << "ELSE: \"" << lexeme << "\" at Line " << line << endl;
+            return out << "IDENT(" << lexeme << ")" << endl;
             break;
         // Identifiers
         case IDENT:
-            return out << "IDENT (" << lexeme << ")" << endl;
+            return out << "IDENT(" << lexeme << ")" << endl;
             break;
         case NIDENT:
-            return out << "NIDENT (" << lexeme << ")" << endl;            
+            return out << "NIDENT(" << lexeme << ")" << endl;            
             break;
         case SIDENT:
-            return out << "SIDENT (" << lexeme << ")" << endl;            
+            return out << "SIDENT(" << lexeme << ")" << endl;            
             break;
         // Constants
         case ICONST:
-            return out << "ICONST (" << lexeme << ")" << endl;            
+            return out << "ICONST(" << lexeme << ")" << endl;            
             break;
         case RCONST:
-            return out << "RCOSNT (" << lexeme << ")" << endl;            
+            return out << "RCONST(" << lexeme << ")" << endl;            
             break;
         case SCONST:
-            return out << "SCONST '" << lexeme << "'" << endl;            
+            return out << "SCONST(" << lexeme << ")" << endl;            
             break;
         // Operators
         case PLUS:
@@ -295,8 +355,7 @@ ostream& operator<<(ostream& out, const LexItem& tok) {
             break;
         // ERR
         case ERR:
-            //Error in line 2 (27.57.)
-            return out << "Error in line " << line << " (" << lexeme << ")" << endl;
+            return out << "Error in line " << line+1 << " (" << lexeme << ")" << endl;
             break;
         // DONE
         case DONE:
