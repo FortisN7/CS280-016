@@ -8,7 +8,7 @@ using namespace std;
 
 void PostfixEval(string instr) {
     regex number("[0-9]+");
-    regex variable("[$]?[a-z]");
+    regex variable("[$]?[a-zA-Z]");
     map<char, int> variables;
     stack<int> nums;
     stringstream in(instr);
@@ -19,12 +19,19 @@ void PostfixEval(string instr) {
             nums.push(stoi(item));
         }
         else if(regex_match(item, variable)) {
-            if (item[0] == '$') /*starts with a '$'*/ {
-                nums.push(variables[item[1]]);
+            if(nums.empty()) {
+                cerr << "Error: Incomplete input postfix expression." << endl;
             }
+            
             else {
-                variables[item[0]] = nums.top();
-                nums.pop();
+                if (item[0] == '$') /*starts with a '$'*/ {
+                    nums.push(variables[item[1]]);
+                }
+                else {
+                    variables[item[0]] = nums.top();
+                    nums.pop();
+                }
+               
             }
         }
         else {
@@ -34,27 +41,26 @@ void PostfixEval(string instr) {
             nums.pop();
             switch(item[0]) {
                 case '+':
-                    nums.push(num1 + num2);
+                    nums.push(num2 + num1);
                     break;
                 case '-':
-                    nums.push(num1 - num2);
+                    nums.push(num2 - num1);
                     break;
                 case '*':
-                    nums.push(num1 * num2);
+                    nums.push(num2 * num1);
                     break;
                 case '/':
-                    nums.push(num1 / num2);
+                    nums.push(num2 / num1);
                     break;
                 default:
-                    cerr << "Error: Incomplete input postfix expression." << endl;
+                    cerr << "Error: Invalid string " << "\"" << instr << "\"" << endl;
             }
         }
-        
+    }
+    if (nums.size() > 1) {
+        cout << "The evaluation is incomplete, missing input operators." << endl;
+    }
+    else {
         cout << "The result of evaluating the postfix expression \"" << instr << "\" is the value: " << nums.top() << endl;
     }
-    
-}
-
-int main(int argc, char *argv[]) {
-    return 0;
 }
