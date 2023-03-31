@@ -461,10 +461,13 @@ bool PrimaryExpr(istream& in, int& line, int sign) { //TODO (look over yk)
 
 	if((tok == SIDENT || tok == NIDENT) && !defVar[tok.GetLexeme()]) {
 		ParseError(line, "Using undefined error");
+        return false;
 	}
 
 	if(tok != IDENT && tok != SIDENT && tok != NIDENT && tok != ICONST && tok != RCONST && tok != SCONST && !Expr(in, line)) {
-		return false;
+		ParseError(line, "Lol what?");
+        return false;
 	}
+	
 	return true;
 }//End of PrimaryExpr
