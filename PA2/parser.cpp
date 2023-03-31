@@ -69,11 +69,18 @@ bool StmtList(istream& in, int& line) {
 		return false;
 	}
 	
-	LexItem tok = Parser::GetNextToken(in, line);
+	tok = Parser::GetNextToken(in, line);
 	if(tok == SEMICOL) {
 		//cout << "before calling StmtList" << endl;
 		status = StmtList(in, line);
 		//cout << "after calling StmtList" << endl;
+		tok = Parser::GetNextToken(in, line);
+		if(tok == DONE) {
+
+		}
+		else {
+			Parser::PushBackToken(tok);
+		}
 	}
 	else if(tok == ERR) {
 		ParseError(line, "Unrecognized Input Pattern");
@@ -150,8 +157,8 @@ bool IfStmt(istream& in, int& line) {
 		return false;
 	}
 
-	bool ex = Expr(in, line);
-	if(!ex) {
+	status = Expr(in, line);
+	if(!status) {
 		ParseError(line, "Missing expression IfStmt");
 		return false;
 	}
@@ -168,8 +175,8 @@ bool IfStmt(istream& in, int& line) {
 		return false;
 	}
 
-	bool SL = StmtList(in, line);
-	if(!SL) {
+	status = StmtList(in, line);
+	if(!status) {
 		ParseError(line, "Missing StmtList in IfStmt");
 		return false;
 	}
@@ -188,8 +195,8 @@ bool IfStmt(istream& in, int& line) {
 			return false;
 		}
 
-		bool SL = StmtList(in, line);
-		if(!SL) {
+		status = StmtList(in, line);
+		if(!status) {
 			ParseError(line, "Missing StmtList in ElseStmt in IfStmt");
 			return false;
 		}
@@ -210,9 +217,10 @@ bool IfStmt(istream& in, int& line) {
 //AssignStmt ::= Var = Expr
 bool AssignStmt(istream& in, int& line) {
 	LexItem tok;
+	bool status = false;
 	
-	bool var = Var(in, line);
-	if(!var) {
+	status = Var(in, line);
+	if(!status) {
 		ParseError(line, "Missing Var in AssignStmt");
 		return false;
 	}
@@ -223,8 +231,8 @@ bool AssignStmt(istream& in, int& line) {
 		return false;
 	}
 
-	bool expr = Expr(in, line);
-	if(!var) {
+	status = Expr(in, line);
+	if(!status) {
 		ParseError(line, "Missing Expr in AssignStmt");
 		return false;
 	}
@@ -281,36 +289,165 @@ bool ExprList(istream& in, int& line) {
 
 //Expr ::= RelExpr [(-eq|==) RelExpr ]
 bool Expr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	status = RelExpr(in, line);
+	if(!status) {
+		ParseError(line, "Missing RelExpr in Expr");
+		return false;
+	}
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == NEQ || tok == SEQ) {
+		status = RelExpr(in, line);
+		if(!status) {
+			ParseError(line, "Missing Second RelExpr in Expr");
+			return false;
+		}	
+	}
+	else {
+		Parser::PushBackToken(tok);
+	}
+
+	return true;
 }//End of Expr
 
 //RelExpr ::= AddExpr [ ( -lt | -gt | < | > ) AddExpr ]
 bool RelExpr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	status = AddExpr(in, line);
+	if(!status) {
+		ParseError(line, "Missing AddExpr in RelExpr");
+		return false;
+	}
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == SLTHAN || tok == SGTHAN || tok == NLTHAN || tok == NGTHAN) {
+		status = AddExpr(in, line);
+		if(!status) {
+			ParseError(line, "Missing Second AddExpr in RelExpr");
+			return false;
+		}	
+	}
+	else {
+		Parser::PushBackToken(tok);
+	}
+
+	return true;
 }//End of RelExpr
 
 //AddExpr :: MultExpr { ( + | - | .) MultExpr }
 bool AddExpr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	status = MultExpr(in, line);
+	if(!status) {
+		ParseError(line, "Missing MultExpr in AddExpr");
+		return false;
+	}
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == PLUS || tok == MINUS || tok == CAT) {
+		status = MultExpr(in, line);
+		if(!status) {
+			ParseError(line, "Missing Second MultExpr in AddExpr");
+			return false;
+		}
+	}
+	else {
+		Parser::PushBackToken(tok);
+	}
+	return true;
 }//End of AddExpr
 
 //MultExpr ::= ExponExpr { ( * | / | **) ExponExpr }
 bool MultExpr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	status = ExponExpr(in, line);
+	if(!status) {
+		ParseError(line, "Missing ExponExpr in MultExpr");
+		return false;
+	}
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == MULT || tok == DIV || tok == EXPONENT) {
+		status = ExponExpr(in, line);
+		if(!status) {
+			ParseError(line, "Missing Second ExponExpr in MultExpr");
+			return false;
+		}
+	}
+	else {
+		Parser::PushBackToken(tok);
+	}
+	return true;
 }//End of MultExpr
 
 //ExponExpr ::= UnaryExpr { ^ UnaryExpr }
 bool ExponExpr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	status = UnaryExpr(in, line);
+	if(!status) {
+		ParseError(line, "Missing UnaryExpr in ExponExpr");
+		return false;
+	}
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == SREPEAT) {
+		status = UnaryExpr(in, line);
+		if(!status) {
+			ParseError(line, "Missing Second UnaryExpr in ExponExpr");
+			return false;
+		}
+	}
+	else {
+		Parser::PushBackToken(tok);
+	}
+	return true;
 }//End of ExponExpr
 
 //UnaryExpr ::= [( - | + )] PrimaryExpr
 bool UnaryExpr(istream& in, int& line) {
-	//TODO
+	bool status = false;
+	LexItem tok;
+
+	tok = Parser::GetNextToken(in, line);
+	if(tok == MINUS) {
+		status = PrimaryExpr(in, line, MINUS);
+		if(!status) {
+			ParseError(line, "Invalid PrimaryExpr");
+			return false;
+		}
+	}
+	else if (tok == PLUS) {
+		status = PrimaryExpr(in, line, PLUS);
+		if(!status) {
+			ParseError(line, "Invalid PrimaryExpr");
+			return false;
+		}
+	}
+	else {
+		Parser::PushBackToken(tok);
+		status = PrimaryExpr(in, line, PLUS);
+		if(!status) {
+			ParseError(line, "Invalid PrimaryExpr");
+			return false;
+		}
+	}
+
+	return true;
 }//End of UnaryExpr
 
 //PrimaryExpr ::= IDENT | SIDENT | NIDENT | ICONST | RCONST | SCONST | (Expr)
-bool PrimaryExpr(istream& in, int& line, int sign) {
+bool PrimaryExpr(istream& in, int& line, int sign) { //TODO (look over yk)
 	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == LPAREN) {
 		if(Expr(in, line)) {
@@ -326,7 +463,7 @@ bool PrimaryExpr(istream& in, int& line, int sign) {
 		ParseError(line, "Using undefined error");
 	}
 
-	if(tok != IDENT & tok != SIDENT && tok != NIDENT && tok != ICONST && tok != RCONST && tok != SCONST && !Expr(in, line)) {
+	if(tok != IDENT && tok != SIDENT && tok != NIDENT && tok != ICONST && tok != RCONST && tok != SCONST && !Expr(in, line)) {
 		return false;
 	}
 	return true;
