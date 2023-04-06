@@ -54,7 +54,7 @@ bool Prog(istream& in, int& line) {
 		ParseError(line, "Missing StmtList");
 		return false;
 	}
-	cout << "(DONE)" << endl;
+	//cout << "Successful Parsing" << endl;
 	return true;
 }//End of Prog
 
@@ -64,58 +64,69 @@ bool StmtList(istream& in, int& line) {
 	LexItem tok;
 
 	status = Stmt(in, line);
-	if(!status) {
+	if (!status) {
 		ParseError(line, "Missing Stmt");
 		return false;
 	}
-	
-	tok = Parser::GetNextToken(in, line);
-	if(tok == SEMICOL) {
-		//cout << "before calling StmtList" << endl;
-		status = StmtList(in, line);
-		//cout << "after calling StmtList" << endl;
-		tok = Parser::GetNextToken(in, line);
-		if(tok == DONE) {
 
-		}
-		else {
-			Parser::PushBackToken(tok);
-		}
+	tok = Parser::GetNextToken(in, line);
+	if(tok == DONE) {
+		cout << "(DONE)" << endl;
+		return true;
 	}
-	else if(tok == ERR) {
-		ParseError(line, "Unrecognized Input Pattern");
-		return false;
-	}
-	else {
+	else if (tok == RBRACES) {
 		Parser::PushBackToken(tok);
 		return true;
 	}
-	return status;
+	Parser::PushBackToken(tok);
+	status = StmtList(in, line);
 
+	return status;
 }//End of StmtList
 
-//Stmt ::= AssignStmt | WriteLnStmt | IfStmt
+//Stmt ::= AssignStmt | WritelnStmt | IfStmt
 bool Stmt(istream& in, int& line) {
 	bool status = false;
 	LexItem tok = Parser::GetNextToken(in, line);
-
-	if (tok == WRITELN) {
+    //cout << tok << endl;
+	if(tok == WRITELN) {
 		status = WritelnStmt(in, line);
+		if (!status) {
+			ParseError(line, "Missing WritelnStmt in Stmt");
+			return false;
+		}
+		tok = Parser::GetNextToken(in, line);
+		if (tok != SEMICOL) {
+			ParseError(line, "Missing Semicolon after WritelnStmt");
+			return false;
+		}
+		return status;
 	}
-	else if (tok == IF) {
+	else if(tok == IF) {
 		status = IfStmt(in, line);
+		if (!status) {
+			ParseError(line, "Missing IfStmt in Stmt");
+			return false;
+		}
+		return status;
 	}
-	else if (tok == NIDENT || tok == SIDENT) {
+	else if(tok == NIDENT || tok == SIDENT) {
 		Parser::PushBackToken(tok);
 		status = AssignStmt(in, line);
+		if (!status) {
+			ParseError(line, "Missing AssignStmt in Stmt");
+			return false;
+		}
+		tok = Parser::GetNextToken(in, line); //getting assop here for some reason 
+		if (tok != SEMICOL) {
+			//cout << tok << endl;
+            ParseError(line, "Missing Semicolon after AssignStmt");
+			return false;
+		}
+		return status;
 	}
-	else {
-		ParseError(line, "Missing AssignStmt, WriteLnStmt, or IfStmt");
-		return false;
-	}
-
-	return status;
-
+	Parser::PushBackToken(tok);
+	return false;
 }//End of Stmt
 
 //WritelnStmt:= writeln (ExprList) 
@@ -206,6 +217,13 @@ bool IfStmt(istream& in, int& line) {
 			ParseError(line, "Missing Right Brace of ElseStmt in IfStmt");
 			return false;
 		}
+        
+        tok = Parser::GetNextToken(in, line);
+        if (tok != SEMICOL) {
+			//cout << tok << endl;
+            ParseError(line, "Missing Semicolon after ElseStmt in IfStmt");
+			return false;
+		}
 	}
 	else {
 		Parser::PushBackToken(tok);
@@ -218,7 +236,8 @@ bool IfStmt(istream& in, int& line) {
 bool AssignStmt(istream& in, int& line) {
 	LexItem tok;
 	bool status = false;
-	
+	//cout << "enter AssignStmt() in " << line << endl;
+    //cout << "before Var()" << endl;
 	status = Var(in, line);
 	if(!status) {
 		ParseError(line, "Missing Var in AssignStmt");
@@ -231,6 +250,7 @@ bool AssignStmt(istream& in, int& line) {
 		return false;
 	}
 
+    //cout << "before Expr()" << endl;
 	status = Expr(in, line);
 	if(!status) {
 		ParseError(line, "Missing Expr in AssignStmt");
@@ -243,6 +263,7 @@ bool AssignStmt(istream& in, int& line) {
 //Var ::= NIDENT | SIDENT
 bool Var(istream& in, int& line) {
 	LexItem tok = Parser::GetNextToken(in, line);
+    //cout << "in Var()" << endl;
 	if(tok == NIDENT) {
 		defVar[tok.GetLexeme()] = true;
 		return defVar[tok.GetLexeme()];
@@ -264,7 +285,7 @@ bool ExprList(istream& in, int& line) {
 	//cout << "in ExprList and before calling Expr" << endl;
 	status = Expr(in, line);
 	if(!status) {
-		ParseError(line, "Missing Expression");
+		ParseError(line, "Missing Expression in ExprList");
 		return false;
 	}
 	
@@ -290,15 +311,16 @@ bool ExprList(istream& in, int& line) {
 //Expr ::= RelExpr [(-eq|==) RelExpr ]
 bool Expr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
 
+    //cout << "in Expr before RelExpr" << endl;
 	status = RelExpr(in, line);
+    //cout << "in Expr after RelExpr" << endl;
 	if(!status) {
 		ParseError(line, "Missing RelExpr in Expr");
 		return false;
 	}
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == NEQ || tok == SEQ) {
 		status = RelExpr(in, line);
 		if(!status) {
@@ -316,15 +338,16 @@ bool Expr(istream& in, int& line) {
 //RelExpr ::= AddExpr [ ( -lt | -gt | < | > ) AddExpr ]
 bool RelExpr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
-
+    
+    //cout << "in RelExpr before AddExpr" << endl;
 	status = AddExpr(in, line);
+    //cout << "in RelExpr after AddExpr" << endl;
 	if(!status) {
 		ParseError(line, "Missing AddExpr in RelExpr");
 		return false;
 	}
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == SLTHAN || tok == SGTHAN || tok == NLTHAN || tok == NGTHAN) {
 		status = AddExpr(in, line);
 		if(!status) {
@@ -342,16 +365,25 @@ bool RelExpr(istream& in, int& line) {
 //AddExpr :: MultExpr { ( + | - | .) MultExpr }
 bool AddExpr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
 
+    //cout << "in AddExpr before MultExpr" << endl;
 	status = MultExpr(in, line);
+    //cout << "in AddExpr after MultExpr" << endl;
 	if(!status) {
 		ParseError(line, "Missing MultExpr in AddExpr");
 		return false;
 	}
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == PLUS || tok == MINUS || tok == CAT) {
+        LexItem tok = Parser::GetNextToken(in, line);
+        if(tok == MULT || tok == DIV || tok == EXPONENT) {
+            ParseError(line, "Missing operand after operator");
+            return false;
+        }
+        else {
+            Parser::PushBackToken(tok);
+        }
 		status = MultExpr(in, line);
 		if(!status) {
 			ParseError(line, "Missing Second MultExpr in AddExpr");
@@ -367,15 +399,16 @@ bool AddExpr(istream& in, int& line) {
 //MultExpr ::= ExponExpr { ( * | / | **) ExponExpr }
 bool MultExpr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
 
+    //cout << "in MultExpr before ExponExpr" << endl;
 	status = ExponExpr(in, line);
+    //cout << "in MultExpr after ExponExpr" << endl;
 	if(!status) {
 		ParseError(line, "Missing ExponExpr in MultExpr");
 		return false;
 	}
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == MULT || tok == DIV || tok == EXPONENT) {
 		status = ExponExpr(in, line);
 		if(!status) {
@@ -392,15 +425,17 @@ bool MultExpr(istream& in, int& line) {
 //ExponExpr ::= UnaryExpr { ^ UnaryExpr }
 bool ExponExpr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
 
+    //cout << "in ExponExpr before UnaryExpr" << endl;
 	status = UnaryExpr(in, line);
-	if(!status) {
+    //cout << "in ExponExpr after UnaryExpr" << endl;	
+    if(!status) {
 		ParseError(line, "Missing UnaryExpr in ExponExpr");
 		return false;
 	}
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
+    //cout << tok << endl; //WHY IS THIS AN ASSOP
 	if(tok == SREPEAT) {
 		status = UnaryExpr(in, line);
 		if(!status) {
@@ -417,10 +452,10 @@ bool ExponExpr(istream& in, int& line) {
 //UnaryExpr ::= [( - | + )] PrimaryExpr
 bool UnaryExpr(istream& in, int& line) {
 	bool status = false;
-	LexItem tok;
 
-	tok = Parser::GetNextToken(in, line);
+	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == MINUS) {
+        //cout << "in RelExpr before PrimaryExpr" << endl;
 		status = PrimaryExpr(in, line, MINUS);
 		if(!status) {
 			ParseError(line, "Invalid PrimaryExpr");
@@ -428,6 +463,7 @@ bool UnaryExpr(istream& in, int& line) {
 		}
 	}
 	else if (tok == PLUS) {
+        //cout << "in RelExpr before PrimaryExpr" << endl;
 		status = PrimaryExpr(in, line, PLUS);
 		if(!status) {
 			ParseError(line, "Invalid PrimaryExpr");
@@ -435,8 +471,11 @@ bool UnaryExpr(istream& in, int& line) {
 		}
 	}
 	else {
+        //cout << tok << endl;
 		Parser::PushBackToken(tok);
+        //cout << "in RelExpr before PrimaryExpr" << endl;
 		status = PrimaryExpr(in, line, PLUS);
+        //cout << "in RelExpr after PrimaryExpr" << endl;
 		if(!status) {
 			ParseError(line, "Invalid PrimaryExpr");
 			return false;
@@ -449,25 +488,34 @@ bool UnaryExpr(istream& in, int& line) {
 //PrimaryExpr ::= IDENT | SIDENT | NIDENT | ICONST | RCONST | SCONST | (Expr)
 bool PrimaryExpr(istream& in, int& line, int sign) { //TODO (look over yk)
 	LexItem tok = Parser::GetNextToken(in, line);
-	if(tok == LPAREN) {
-		if(Expr(in, line)) {
+    //cout << "in PrimaryExpr line " << line << endl;
+    //cout << tok << endl;
+	bool status = false;
+    
+    if(tok == LPAREN) {
+        status = Expr(in, line);
+		if(status) {
 			tok = Parser::GetNextToken(in, line);
 			if(tok != RPAREN) {
-				ParseError(line, "Missing ')' in (Expr)");
+				ParseError(line, "Missing ')' in (Expr) in PrimaryExpr");
 				return false;
 			}
 		}
 	}
+    
+    if(tok == RPAREN) {
+        return true;
+    }
 
 	if((tok == SIDENT || tok == NIDENT) && !defVar[tok.GetLexeme()]) {
-		ParseError(line, "Using undefined error");
+		ParseError(line, "Using undefined variable in PrimaryExpr");
         return false;
 	}
 
 	if(tok != IDENT && tok != SIDENT && tok != NIDENT && tok != ICONST && tok != RCONST && tok != SCONST && !Expr(in, line)) {
-		ParseError(line, "Lol what?");
-        return false;
+		ParseError(line, "Not a PrimaryExpr");
 	}
 	
+    //cout << tok << " end of PrimaryExpr" << endl;
 	return true;
 }//End of PrimaryExpr
