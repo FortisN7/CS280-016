@@ -1,15 +1,17 @@
 /* Implementation of Recursive-Descent Parser
- * parse.cpp
- * Programming Assignment 2
+ * parserInt.cpp
+ * Programming Assignment 3
  * Spring 2023
 */
 
 //renamed parser.cpp given in canvas
 
-#include "parser.h"
+#include "parserInt.h"
 
 map<string, bool> defVar;
 map<string, Token> SymTable;
+map<string, Value> TempsResults; //Container of temporary locations of Value objects for results of expressions, variables values and constants 
+queue <Value> * ValQue; //declare a pointer variable to a queue of Value objects
 
 namespace Parser {
 	bool pushed_back = false;
@@ -46,7 +48,8 @@ void ParseError(int line, string msg)
 	cout << error_count << ". Line # " << line << ": " << msg << endl;
 }
 
-bool IdentList(istream& in, int& line);
+//Why is this here... irrelevant
+//bool IdentList(istream& in, int& line);
 
 
 //Program is: Prog ::= StmtList
@@ -180,6 +183,7 @@ bool Stmt(istream& in, int& line){
 //WritelnStmt:= WRITELN (ExpreList) 
 bool WritelnStmt(istream& in, int& line) {
 	LexItem t;
+	ValQue = new queue<Value>;
 		
 	t = Parser::GetNextToken(in, line);
 	if( t != LPAREN ) {
@@ -192,8 +196,22 @@ bool WritelnStmt(istream& in, int& line) {
 	
 	if( !ex ) {
 		ParseError(line, "Missing expression list after Print");
+		while(!(*ValQue).empty())
+		{
+			ValQue->pop();		
+		}
+		delete ValQue;
 		return false;
 	}
+	
+	//Evaluate: writeln by printing out the list of expressions' values
+	while (!(*ValQue).empty())
+	{
+		Value nextVal = (*ValQue).front();
+		cout << nextVal;
+		ValQue->pop();
+	}
+	cout << endl;
 	
 	t = Parser::GetNextToken(in, line);
 	if(t != RPAREN ) {
@@ -201,7 +219,6 @@ bool WritelnStmt(istream& in, int& line) {
 		ParseError(line, "Missing Right Parenthesis of Writeln Statement");
 		return false;
 	}
-	
 	return true;
 }//End of WritelnStmt
 
@@ -282,7 +299,7 @@ bool IfStmt(istream& in, int& line) {
 }//End of IfStmt function
 
 //Var ::= NIDENT | SIDENT
-bool Var(istream& in, int& line)
+bool Var(istream& in, int& line, LexItem & idtok)
 {
 	string identstr;
 	
@@ -346,13 +363,14 @@ bool AssignStmt(istream& in, int& line) {
 //ExprList:= Expr {,Expr}
 bool ExprList(istream& in, int& line) {
 	bool status = false;
+	Value retVal;
 	
-	status = Expr(in, line);
+	status = Expr(in, line, retVal);
 	if(!status){
 		ParseError(line, "Missing Expression");
 		return false;
 	}
-	
+	ValQue->push(retVal);
 	LexItem tok = Parser::GetNextToken(in, line);
 	
 	if (tok == COMMA) {
@@ -371,7 +389,7 @@ bool ExprList(istream& in, int& line) {
 }//End of ExprList
 
 //Expr ::= EqualExpr ::= RelExpr [(-EQ|==) RelExpr ]
-bool Expr(istream& in, int& line) {
+bool Expr(istream& in, int& line, Value & retVal) {
 	LexItem tok;
 	bool t1 = RelExpr(in, line);
 		
@@ -406,7 +424,7 @@ bool Expr(istream& in, int& line) {
 }//End of Expr/EqualExpr
 
 //RelExpr ::= AddExpr [ ( -LT | -GT | < | > )  AddExpr ]
-bool RelExpr(istream& in, int& line) {
+bool RelExpr(istream& in, int& line, Value & retVal) {
 	LexItem tok;
 	bool t1 = AddExpr(in, line);
 		
@@ -442,7 +460,7 @@ bool RelExpr(istream& in, int& line) {
 }//End of RelExpr
 
 //AddExpr :: MultExpr { ( + | - | .) MultExpr }
-bool AddExpr(istream& in, int& line) {
+bool AddExpr(istream& in, int& line, Value & retVal) {
 	
 	bool t1 = MultExpr(in, line);
 	LexItem tok;
@@ -478,7 +496,7 @@ bool AddExpr(istream& in, int& line) {
 }//End of AddExpr
 
 //MultExpr ::= ExponExpr { ( * | / | **) ExponExpr }
-bool MultExpr(istream& in, int& line) {
+bool MultExpr(istream& in, int& line, Value & retVal) {
 	
 	bool t1 = ExponExpr(in, line);
 	LexItem tok;
@@ -515,7 +533,7 @@ bool MultExpr(istream& in, int& line) {
 
 //ExponExpr ::= UnaryExpr { ^ UnaryExpr }
 //enforcing right associativity using right recursiveness
-bool ExponExpr(istream& in, int& line)
+bool ExponExpr(istream& in, int& line, Value & retVal)
 {
 	bool status;
 		
@@ -550,7 +568,7 @@ bool ExponExpr(istream& in, int& line)
 }//End of ExponExpr
 
 //UnaryExpr ::= ( - | + ) PrimaryExpr | PrimaryExpr
-bool UnaryExpr(istream& in, int& line)
+bool UnaryExpr(istream& in, int& line, Value & retVal)
 {
 	LexItem t = Parser::GetNextToken(in, line);
 	bool status;
@@ -572,7 +590,7 @@ bool UnaryExpr(istream& in, int& line)
 
 
 //PrimaryExpr ::= IDENT | NIDENT | SIDENT | ICONST | RCONST | SCONST | ( Expr )
-bool PrimaryExpr(istream& in, int& line, int sign) {
+bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal) {
 	
 	LexItem tok = Parser::GetNextToken(in, line);
 	
