@@ -226,6 +226,7 @@ bool WritelnStmt(istream& in, int& line) {
 bool IfStmt(istream& in, int& line) {
 	bool ex = false, status ; 
 	LexItem t;
+	Value retVal;
 	
 	t = Parser::GetNextToken(in, line);
 	if( t != LPAREN ) {
@@ -234,9 +235,13 @@ bool IfStmt(istream& in, int& line) {
 		return false;
 	}
 	
-	ex = Expr(in, line);
+	ex = Expr(in, line, retVal);
 	if( !ex ) {
 		ParseError(line, "Missing if statement Logic Expression");
+		return false;
+	}
+	if (!retVal.IsBool()) {
+		ParseError(line, "Illegal logic operation in if.");
 		return false;
 	}
 	
@@ -253,11 +258,22 @@ bool IfStmt(istream& in, int& line) {
 		ParseError(line, "If Statement Syntax Error: Missing left brace");
 		return false;
 	}
-	status = StmtList(in, line);
-	if(!status)
-	{
-		ParseError(line, "Missing Statement for If-Stmt Clause");
-		return false;
+	Value saveState = retVal;
+	
+	if(saveState.GetBool()){
+		status = StmtList(in, line);
+		if(!status)
+		{
+			ParseError(line, "Missing Statement for If-Stmt If-Part");
+			return false;
+		}
+		t = Parser::GetNextToken(in, line);
+	}
+	while((t.GetToken() != ELSE || t.GetToken()!=RBRACES || t.GetToken()!= DONE) && !saveState.GetBool()){
+		t = Parser::GetNextToken(in, line);
+		if(t.GetToken() == ELSE || t.GetToken()==RBRACES || t.GetToken()== DONE){
+			break;
+		}
 	}
 	t = Parser::GetNextToken(in, line);
 	if( t != RBRACES)
@@ -275,13 +291,25 @@ bool IfStmt(istream& in, int& line) {
 			ParseError(line, "If Statement Syntax Error: Missing left brace");
 			return false;
 		}
-		status = StmtList(in, line);
-		if(!status)
-		{
-			ParseError(line, "Missing Statement for Else-Clause");
-			return false;
+		if (saveState.GetBool()) {
+			while(t.GetToken() != RBRACES || t.GetToken() !=DONE){
+				t = Parser::GetNextToken(in, line);
+				if (t.GetToken() == RBRACES) {
+					break;
+				}
+			}
 		}
-		t = Parser::GetNextToken(in, line);
+		else {
+			status = StmtList(in, line);
+			if(!status)
+			{
+				ParseError(line, "Missing Statement for If-Stmt Else-Part");
+				return false;
+			}
+			else {
+				t = Parser::GetNextToken(in, line);
+			}
+		}
 		if( t != RBRACES)
 		{
 			Parser::PushBackToken(t);
@@ -303,21 +331,22 @@ bool Var(istream& in, int& line, LexItem & idtok)
 {
 	string identstr;
 	
-	LexItem tok = Parser::GetNextToken(in, line);
+	idtok = Parser::GetNextToken(in, line);
 	
-	if (tok == NIDENT || tok == SIDENT){
-		identstr = tok.GetLexeme();
+	if (idtok == NIDENT || idtok == SIDENT){
+		identstr = idtok.GetLexeme();
 		
 		if (!(defVar.find(identstr)->second))
 		{
 			defVar[identstr] = true;
-			SymTable[identstr] = tok.GetToken();
+			SymTable[identstr] = idtok.GetToken();
+			TempsResults[identstr] = Value();
 		}	
 		return true;
 	}
-	else if(tok.GetToken() == ERR){
+	else if (idtok.GetToken() == ERR) {
 		ParseError(line, "Unrecognized Input Pattern");
-		
+		cout << "(" << idtok.GetLexeme() << ")" << endl;
 		return false;
 	}
 	
@@ -328,20 +357,48 @@ bool Var(istream& in, int& line, LexItem & idtok)
 bool AssignStmt(istream& in, int& line) {
 	bool varstatus = false, status = false;
 	LexItem t;
-	
-	varstatus = Var( in, line);
+	Value retVal;
+	string identString = t.GetLexeme();
+	Token type = SymTable[identString];
+	//idk what to put in there i think t makes sense
+	varstatus = Var( in, line, t);
 	
 	if (varstatus){
 		t = Parser::GetNextToken(in, line);
 		
 		if (t == ASSOP){
-			status = Expr(in, line);
+			status = Expr(in, line, retVal);
 			
 			if(!status) {
 				ParseError(line, "Missing Expression in Assignment Statement");
 				return status;
 			}
-			
+			if((type == ICONST || type == RCONST || type == NIDENT) && retVal.IsString()){
+				ParseError(line, "Illegal Assignment Operation");
+				return false;
+			}
+			else if (retVal.IsBool()) {
+				TempsResults[identString] = retVal;
+			}
+			else if (retVal.IsInt()) {
+				TempsResults[identString] = retVal;
+			}
+			else if (retVal.IsReal()) {
+				TempsResults[identString] = retVal;
+			}
+			else if(retVal.IsReal()){
+				TempsResults[identString] = (int)retVal.GetReal();
+			}
+			else if(retVal.IsInt()){
+				TempsResults[identString] = Value(static_cast< double >(retVal.GetInt()));
+			}
+			else if(retVal.IsString()){
+				TempsResults[identString] = retVal;
+			}
+			else {
+				ParseError(line, "Value type does not match.");
+				return false;
+			}
 		}
 		else if(t.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -389,14 +446,14 @@ bool ExprList(istream& in, int& line) {
 }//End of ExprList
 
 //Expr ::= EqualExpr ::= RelExpr [(-EQ|==) RelExpr ]
-bool Expr(istream& in, int& line, Value & retVal) {
+bool Expr(istream& in, int& line, Value& retVal) {
 	LexItem tok;
-	bool t1 = RelExpr(in, line);
-		
+	Value val1, val2;
+	bool t1 = RelExpr(in, line, val1);
 	if( !t1 ) {
 		return false;
 	}
-	
+	retVal = val1;
 	tok = Parser::GetNextToken(in, line);
 	if(tok.GetToken() == ERR){
 		ParseError(line, "Unrecognized Input Pattern");
@@ -405,13 +462,24 @@ bool Expr(istream& in, int& line, Value & retVal) {
 	}
 	if ( tok == NEQ || tok == SEQ ) 
 	{
-		t1 = RelExpr(in, line);
+		t1 = RelExpr(in, line, val2);
 		if( !t1 ) 
 		{
 			ParseError(line, "Missing operand after operator");
 			return false;
 		}
-		
+
+		if (tok == NEQ){
+			retVal = retVal == val2;
+		}
+		else if (tok == SEQ) {
+			retVal = retVal.SEqual(val2);
+		}
+
+		if(retVal.IsErr()){
+			ParseError(line, "Illegal operation in Expr.");
+			return false;
+		}
 		tok = Parser::GetNextToken(in, line);
 		if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -424,14 +492,15 @@ bool Expr(istream& in, int& line, Value & retVal) {
 }//End of Expr/EqualExpr
 
 //RelExpr ::= AddExpr [ ( -LT | -GT | < | > )  AddExpr ]
-bool RelExpr(istream& in, int& line, Value & retVal) {
+bool RelExpr(istream& in, int& line, Value& retVal) {
 	LexItem tok;
-	bool t1 = AddExpr(in, line);
+	Value val1, val2;
+	bool t1 = AddExpr(in, line, val1);
 		
 	if( !t1 ) {
 		return false;
 	}
-	
+	retVal = val1;
 	tok = Parser::GetNextToken(in, line);
 	if(tok.GetToken() == ERR){
 		ParseError(line, "Unrecognized Input Pattern");
@@ -440,13 +509,28 @@ bool RelExpr(istream& in, int& line, Value & retVal) {
 	}
 	if ( tok == NGTHAN || tok == NLTHAN || tok == SGTHAN || tok == SLTHAN ) 
 	{
-		t1 = AddExpr(in, line);
+		t1 = AddExpr(in, line, val2);
 		if( !t1 ) 
 		{
 			ParseError(line, "Missing operand after operator");
 			return false;
 		}
-		
+		if(tok == NLTHAN) {
+			retVal = retVal < val2;
+		}
+		else if(tok == NGTHAN) {
+			retVal = retVal > val2;
+		}
+		else if (tok == SGTHAN) {
+			retVal = retVal.SGthan(val2);
+		}
+		else if (tok == SLTHAN) {
+			retVal = retVal.SLthan(val2);
+		}
+		if(retVal.IsErr()){
+			ParseError(line, "Illegal operation in RelExpr.");
+			return false;
+		}
 		tok = Parser::GetNextToken(in, line);
 		if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -460,30 +544,42 @@ bool RelExpr(istream& in, int& line, Value & retVal) {
 }//End of RelExpr
 
 //AddExpr :: MultExpr { ( + | - | .) MultExpr }
-bool AddExpr(istream& in, int& line, Value & retVal) {
-	
-	bool t1 = MultExpr(in, line);
+bool AddExpr(istream& in, int& line, Value& retVal) {
+	Value val1, val2;
+	bool t1 = MultExpr(in, line, val1);
 	LexItem tok;
 	
 	if( !t1 ) {
 		return false;
 	}
-	
+	retVal = val1;
 	tok = Parser::GetNextToken(in, line);
 	if(tok.GetToken() == ERR){
 		ParseError(line, "Unrecognized Input Pattern");
 		cout << "(" << tok.GetLexeme() << ")" << endl;
 		return false;
 	}
-	while ( tok == PLUS || tok == MINUS || tok == CAT) 
+	while (tok == PLUS || tok == MINUS || tok == CAT) 
 	{
-		t1 = MultExpr(in, line);
-		if( !t1 ) 
+		t1 = MultExpr(in, line, val2);
+		if ( !t1 ) 
 		{
 			ParseError(line, "Missing operand after operator");
 			return false;
 		}
-		
+		if (tok == PLUS) {
+			retVal = retVal + val2;
+		}
+		else if (tok == MINUS) {
+			retVal = retVal - val2;
+		}
+		else if (tok == CAT) {
+			retVal = retVal.Catenate(val2);
+		}
+		if(retVal.IsErr()){
+			ParseError(line, "Illegal operation in AddExpr.");
+			return false;
+		}
 		tok = Parser::GetNextToken(in, line);
 		if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -496,15 +592,15 @@ bool AddExpr(istream& in, int& line, Value & retVal) {
 }//End of AddExpr
 
 //MultExpr ::= ExponExpr { ( * | / | **) ExponExpr }
-bool MultExpr(istream& in, int& line, Value & retVal) {
-	
-	bool t1 = ExponExpr(in, line);
+bool MultExpr(istream& in, int& line, Value& retVal) {
+	Value val1, val2;
+	bool t1 = ExponExpr(in, line, val1);
 	LexItem tok;
 	
 	if( !t1 ) {
 		return false;
 	}
-	
+	retVal = val1;
 	tok	= Parser::GetNextToken(in, line);
 	if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -513,13 +609,25 @@ bool MultExpr(istream& in, int& line, Value & retVal) {
 	}
 	while ( tok == MULT || tok == DIV  || tok == SREPEAT)
 	{
-		t1 = ExponExpr(in, line);
+		t1 = ExponExpr(in, line, val2);
 		
-		if( !t1 ) {
+		if ( !t1 ) {
 			ParseError(line, "Missing operand after operator");
 			return false;
 		}
-		
+		if (tok == MULT) {
+			retVal = retVal * val2;
+		}
+		else if (tok == DIV) {
+			retVal = retVal/val2;
+		}
+		else if (tok == SREPEAT) {
+			retVal = retVal.Repeat(val2);
+		}
+		if(retVal.IsErr()){
+			ParseError(line, "Illegal operation in MultExpr.");
+			return false;
+		}
 		tok	= Parser::GetNextToken(in, line);
 		if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -533,24 +641,29 @@ bool MultExpr(istream& in, int& line, Value & retVal) {
 
 //ExponExpr ::= UnaryExpr { ^ UnaryExpr }
 //enforcing right associativity using right recursiveness
-bool ExponExpr(istream& in, int& line, Value & retVal)
+bool ExponExpr(istream& in, int& line, Value& retVal)
 {
 	bool status;
-		
-	status = UnaryExpr(in, line);
+	Value val1, val2;
+	status = UnaryExpr(in, line, val1);
 	if( !status ) {
 		return false;
 	}
-	
+	retVal = val1;
 	LexItem tok = Parser::GetNextToken(in, line);
 	if (tok == EXPONENT)
 	{
-		status = ExponExpr(in, line);
+		status = ExponExpr(in, line, val2);
 		if( !status ) {
 			ParseError(line, "Missing operand after operator");
 			return false;
 		}
-		
+        //not sure if val1 or val2
+		retVal = retVal^val2;
+		if(retVal.IsErr()){
+			ParseError(line, "Illegal operation in ExponExpr.");
+			return false;
+		}
 		tok	= Parser::GetNextToken(in, line);
 		if(tok.GetToken() == ERR){
 			ParseError(line, "Unrecognized Input Pattern");
@@ -568,77 +681,151 @@ bool ExponExpr(istream& in, int& line, Value & retVal)
 }//End of ExponExpr
 
 //UnaryExpr ::= ( - | + ) PrimaryExpr | PrimaryExpr
-bool UnaryExpr(istream& in, int& line, Value & retVal)
+bool UnaryExpr(istream& in, int& line, Value& retVal)
 {
 	LexItem t = Parser::GetNextToken(in, line);
 	bool status;
 	int sign = 0;
-	if(t == MINUS )
-	{
+	if(t == MINUS ) {
 		sign = -1;
 	}
-	else if(t == PLUS)
-	{
+	else if(t == PLUS) {
 		sign = 1;
 	}
 	else
 		Parser::PushBackToken(t);
 		
-	status = PrimaryExpr(in, line, sign);
+	status = PrimaryExpr(in, line, sign, retVal);
 	return status;
 }//End of UnaryExpr
 
 
-//PrimaryExpr ::= IDENT | NIDENT | SIDENT | ICONST | RCONST | SCONST | ( Expr )
+//PrimaryExpr ::= IDENT | SIDENT | NIDENT | ICONST | RCONST | SCONST | (Expr)
 bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal) {
-	
 	LexItem tok = Parser::GetNextToken(in, line);
-	
-	if( tok == NIDENT || tok == SIDENT) {
-		
+	if(tok == IDENT){
 		string lexeme = tok.GetLexeme();
-		if (!(defVar.find(lexeme)->second))
-		{
+		if(!(defVar.find(lexeme)->second)){
 			ParseError(line, "Using Undefined Variable");
 			return false;	
 		}
+		retVal = TempsResults[lexeme];
+		if (TempsResults[lexeme].IsReal() || TempsResults[lexeme].IsInt()) {
+			if (sign == -1) {
+				if (TempsResults[lexeme].GetReal() > 0 || TempsResults[lexeme].GetInt() > 0) {
+					retVal = Value(TempsResults[lexeme] * -1);
+				}
+				else{
+					retVal = Value(); 
+				}
+			}
+			else if (sign == 1) {
+				if (TempsResults[lexeme].GetReal() < 0 || TempsResults[lexeme].GetInt() < 0) {
+					retVal = Value(TempsResults[lexeme] * -1);
+				}
+				else {
+					retVal = Value();
+				}
+			}
+		}
+		if (retVal.IsErr()) {
+			ParseError(line, "Illegal Sign Operator at PrimaryExpr for IDENT");
+			return false;	
+		}		
 		return true;
 	}
-	else if( tok == ICONST ) {
-		
+	if (tok == NIDENT) {
+		string lexeme = tok.GetLexeme();
+		if (!(defVar.find(lexeme)->second)) {
+			ParseError(line, "Using Undefined Variable");
+			return false;	
+		}
+		retVal = TempsResults[lexeme];
+		if (sign == -1) {
+			if(TempsResults[lexeme].GetReal() > 0 || TempsResults[lexeme].GetInt() > 0) {
+				retVal = Value(TempsResults[lexeme] * -1);
+			}
+			else {
+				retVal = Value(); 
+			}
+		}
+		else if (sign == 1) {
+			if (TempsResults[lexeme].GetReal() < 0 || TempsResults[lexeme].GetInt() < 0) {
+				retVal = Value(TempsResults[lexeme] * -1);
+			}
+			else {
+				retVal = Value();
+			}
+		}
+		if (retVal.IsErr()) {
+			ParseError(line, "Illegal Sign Operator at PrimaryExpr for NIDENT");
+			return false;	
+		}		
 		return true;
 	}
-	else if( tok == SCONST ) {
-		
+	else if (tok == SIDENT) {
+		retVal = Value(TempsResults[tok.GetLexeme()]);
 		return true;
 	}
-	else if( tok == RCONST ) {
-		
+	else if(tok == SCONST) {
+		if (sign != 0) {
+			ParseError(line, "Illegal Operand Type for Sign Operator");
+			return false; 
+		}
+		retVal = Value(tok.GetLexeme());
 		return true;
 	}
-	else if( tok == LPAREN ) {
-		bool ex = Expr(in, line);
-		if( !ex ) {
+	else if (tok == ICONST) {
+		if (sign == 0) {
+			if (tok.GetLexeme().back() == '.') {
+				retVal = Value(stod(tok.GetLexeme()));
+			}
+			retVal = Value(stod(tok.GetLexeme()));
+		}
+		else if (sign == 1) {
+			retVal = Value(abs(stod(tok.GetLexeme())));
+		}
+		else if (sign == -1) {
+			retVal = Value(-1 * abs(stod(tok.GetLexeme())));
+		}
+		return true;
+	}
+	else if (tok == RCONST) {
+		if (sign == 0) {
+			if (tok.GetLexeme().back() == '.') {
+				retVal = Value(stoi(tok.GetLexeme()));
+			}
+			else {
+				retVal = Value(stod(tok.GetLexeme()));
+			}
+		}
+		else if (sign == 1) {
+			retVal = Value(abs(stod(tok.GetLexeme())));
+		}
+		else if (sign == -1) {
+			retVal = Value(-1 * abs(stod(tok.GetLexeme())));
+		}
+		return true;
+	}
+	else if (tok == LPAREN) {
+		bool ex = Expr(in, line, retVal);
+		if (!ex) {
 			ParseError(line, "Missing expression after Left Parenthesis");
 			return false;
 		}
-		if( Parser::GetNextToken(in, line) == RPAREN )
+		if (Parser::GetNextToken(in, line) == RPAREN) {
 			return ex;
-		else 
-		{
+        }
+		else {
 			Parser::PushBackToken(tok);
 			ParseError(line, "Missing right Parenthesis after expression");
 			return false;
 		}
 	}
-	else if(tok.GetToken() == ERR){
+	else if (tok.GetToken() == ERR) {
 		ParseError(line, "Unrecognized Input Pattern");
 		cout << "(" << tok.GetLexeme() << ")" << endl;
 		return false;
 	}
-
 	return false;
 }
-
-
-

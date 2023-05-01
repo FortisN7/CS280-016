@@ -7,6 +7,8 @@ overloaded operator functions specified in the Value class definition.*/
 
 using namespace std;
 
+//might have to move where we declare oper1 and oper2 as doubles if that interferes with setting as int
+
 // numeric overloaded add op to this
 Value Value::operator+(const Value& op) const {
     double oper1;
@@ -252,6 +254,22 @@ Value Value::operator*(const Value& op) const {
     //First operand is real and second operand is real
     else if (IsInt() && op.IsInt()) {
         oper1 = GetInt();
+        oper2 = op.GetInt();
+        //operation
+        ans = oper1 * oper2;
+        return Value(ans);
+    }
+    //First operand is int and second operand is a real
+    else if (IsInt() && op.IsReal()) {
+        oper1 = GetInt();
+        oper2 = op.GetReal();
+        //operation
+        ans = oper1 * oper2;
+        return Value(ans);
+    }
+    //First operand is int and second operand is a real
+    else if (IsReal() && op.IsInt()) {
+        oper1 = GetReal();
         oper2 = op.GetInt();
         //operation
         ans = oper1 * oper2;
@@ -745,7 +763,56 @@ Value Value::Catenate(const Value& oper) const {
         ans = oper1 + oper2;
         return Value(ans);
     }
-
+    //First operand is int and second operand is a string
+    else if (IsInt() && oper.IsString()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            oper2 = oper.GetString();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 + oper2; 
+        return Value(ans);
+    }
+    //First operand is a string and second operand is int
+    else if (IsString() && oper.IsInt()) {
+        try {
+            oper1 = GetString();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 + oper2; 
+        return Value(ans);
+    }
+    //First operand is real and second operand is real
+    else if (IsInt() && oper.IsInt()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from double to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 + oper2; 
+        return Value(ans);
+    }
     //First operand is real and second operand is a string
     else if (IsReal() && oper.IsString()) {
         try {
@@ -804,7 +871,31 @@ Value Value::Catenate(const Value& oper) const {
 
 //string repetition operation of this with op
 Value Value::Repeat(const Value& oper) const {
-    //TODO: THIS
+    //this might not work lmao
+
+    if (IsString() && oper.IsReal()) {
+        try {
+            string oper1 = GetString();
+            double oper2 = oper.GetReal();
+            //operation
+            
+            string ans;
+            for (int i = 0; i < oper2; i++) {
+                ans += oper1;
+            }
+            return Value(ans);
+        }
+        catch (...) {
+            cout << "Invalid syntax for Repeat" << endl;
+            return Value();
+        }
+    }
+    //might need to add oper.IsInt()
+    else {
+        cout << "Invalid syntax for Repeat" << endl;
+        return Value();
+    }
+
 }
 
 //string equality (-eq) operator of this with op
@@ -812,6 +903,7 @@ Value Value::SEqual(const Value& oper) const {
     string oper1;
     string oper2;
     bool ans;
+    //cout << this->GetType() << " " << oper.GetType() << endl;
     //First operand is a string and second operand is a string
     if (IsString() && oper.IsString()) {
         oper1 = GetString();
@@ -820,7 +912,56 @@ Value Value::SEqual(const Value& oper) const {
         ans = oper1 == oper2;
         return Value(ans);
     }
-    
+    //First operand is int and second operand is a string
+    else if (IsInt() && oper.IsString()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            oper2 = oper.GetString();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 == oper2; 
+        return Value(ans);
+    }
+    //First operand is a string and second operand is int
+    else if (IsString() && oper.IsInt()) {
+        try {
+            oper1 = GetString();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 == oper2; 
+        return Value(ans);
+    }
+    //First operand is real and second operand is real
+    else if (IsInt() && oper.IsInt()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 == oper2; 
+        return Value(ans);
+    }
     //First operand is real and second operand is a string
     else if (IsReal() && oper.IsString()) {
         try {
@@ -873,6 +1014,7 @@ Value Value::SEqual(const Value& oper) const {
     }
     //ERR
     else {
+        
         return Value();
     }
 }
@@ -890,7 +1032,56 @@ Value Value::SGthan(const Value& oper) const {
         ans = oper1 > oper2;
         return Value(ans);
     }
-    
+    //First operand is Int and second operand is a string
+    else if (IsInt() && oper.IsString()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            oper2 = oper.GetString();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 > oper2; 
+        return Value(ans);
+    }
+    //First operand is a string and second operand is Int
+    else if (IsString() && oper.IsInt()) {
+        try {
+            oper1 = GetString();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 > oper2; 
+        return Value(ans);
+    }
+    //First operand is Int and second operand is Int
+    else if (IsInt() && oper.IsInt()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 > oper2; 
+        return Value(ans);
+    }
     //First operand is real and second operand is a string
     else if (IsReal() && oper.IsString()) {
         try {
@@ -960,7 +1151,56 @@ Value Value::SLthan(const Value& oper) const {
         ans = oper1 < oper2;
         return Value(ans);
     }
-    
+    //First operand is Int and second operand is a string
+    else if (IsInt() && oper.IsString()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            oper2 = oper.GetString();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 < oper2; 
+        return Value(ans);
+    }
+    //First operand is a string and second operand is Int
+    else if (IsString() && oper.IsInt()) {
+        try {
+            oper1 = GetString();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 < oper2; 
+        return Value(ans);
+    }
+    //First operand is Int and second operand is Int
+    else if (IsInt() && oper.IsInt()) {
+        try {
+            ostringstream outStr1;
+            outStr1 << GetInt();
+            oper1 = outStr1.str();
+            ostringstream outStr2;
+            outStr2 << oper.GetInt();
+            oper2 = outStr2.str();
+        }
+        catch (invalid_argument & arg) {
+            cout << "Invalid conversion from Int to string." << endl;
+            return Value();
+        }
+        //operation
+        ans = oper1 < oper2; 
+        return Value(ans);
+    }
     //First operand is real and second operand is a string
     else if (IsReal() && oper.IsString()) {
         try {
