@@ -64,8 +64,7 @@ bool Prog(istream& in, int& line)
 		return true;
 	}
 	Parser::PushBackToken(tok);
-	f1 = StmtList(in, line); 
-			
+	f1 = StmtList(in, line); 	
 	if(!f1) 
 	{
 		ParseError(line, "Missing Program");
@@ -87,6 +86,7 @@ bool StmtList(istream& in, int& line){
 		tok = Parser::GetNextToken(in, line);
 		if(tok == DONE)
 		{
+            cout << endl;
             cout << "(" << "DONE" << ")" << endl;
 			Parser::PushBackToken(tok);
 			return true;
@@ -106,9 +106,14 @@ bool StmtList(istream& in, int& line){
 		status = Stmt(in, line);
 		
 	}
+    
+    if (!status) {
+        return false;
+    }
+    
 			
 	tok = Parser::GetNextToken(in, line);
-	if(tok == ELSE )
+	if (tok == ELSE)
 	{
 		ParseError(line, "Missing right brace.");
 		return false;
@@ -159,7 +164,7 @@ bool Stmt(istream& in, int& line){
 		if(!status)
 		{
 			ParseError(line, "Incorrect If-Statement.");
-			return status;
+            return status;
 		}
 		break;
 	case ELSE:
@@ -176,6 +181,7 @@ bool Stmt(istream& in, int& line){
 		Parser::PushBackToken(t);
 		return true;
 	}
+    
 	return status;
 }//End of Stmt function
 
@@ -246,21 +252,20 @@ bool IfStmt(istream& in, int& line) {
 	}
 	
 	t = Parser::GetNextToken(in, line);
-	if(t != RPAREN ) {
+	if (t != RPAREN) {
 		
 		ParseError(line, "Missing Right Parenthesis of If condition");
 		return false;
 	}
 	
 	t = Parser::GetNextToken(in, line);
-	if(t != LBRACES)
-	{
+	if (t != LBRACES) {
 		ParseError(line, "If Statement Syntax Error: Missing left brace");
 		return false;
 	}
 	Value saveState = retVal;
 	
-	if(saveState.GetBool()){
+	if (saveState.GetBool()) {
 		status = StmtList(in, line);
 		if(!status)
 		{
@@ -269,30 +274,27 @@ bool IfStmt(istream& in, int& line) {
 		}
 		t = Parser::GetNextToken(in, line);
 	}
-	while((t.GetToken() != ELSE || t.GetToken()!=RBRACES || t.GetToken()!= DONE) && !saveState.GetBool()){
+	while ((t.GetToken() != RBRACES || t.GetToken() != DONE) && !saveState.GetBool()) {
 		t = Parser::GetNextToken(in, line);
-		if(t.GetToken() == ELSE || t.GetToken()==RBRACES || t.GetToken()== DONE){
+		if (t.GetToken() == RBRACES || t.GetToken() == DONE) {
 			break;
 		}
 	}
-	t = Parser::GetNextToken(in, line);
-	if( t != RBRACES)
-	{
+	
+	if (t != RBRACES) {
 		ParseError(line, "If Statement Syntax Error: Missing right brace.");
 		return false;
 	}
 	
 	t = Parser::GetNextToken(in, line);
-	
 	if( t == ELSE ) {
 		t = Parser::GetNextToken(in, line);
-		if(t != LBRACES)
-		{
+		if (t != LBRACES) {
 			ParseError(line, "If Statement Syntax Error: Missing left brace");
 			return false;
 		}
 		if (saveState.GetBool()) {
-			while(t.GetToken() != RBRACES || t.GetToken() !=DONE){
+			while(t.GetToken() != RBRACES || t.GetToken() != DONE){
 				t = Parser::GetNextToken(in, line);
 				if (t.GetToken() == RBRACES) {
 					break;
@@ -301,8 +303,7 @@ bool IfStmt(istream& in, int& line) {
 		}
 		else {
 			status = StmtList(in, line);
-			if(!status)
-			{
+			if (!status) {
 				ParseError(line, "Missing Statement for If-Stmt Else-Part");
 				return false;
 			}
@@ -310,8 +311,7 @@ bool IfStmt(istream& in, int& line) {
 				t = Parser::GetNextToken(in, line);
 			}
 		}
-		if( t != RBRACES)
-		{
+		if (t != RBRACES) {
 			Parser::PushBackToken(t);
 			ParseError(line, "If Statement Syntax Error: Missing right brace.");
 			return false;
@@ -358,16 +358,19 @@ bool AssignStmt(istream& in, int& line) {
 	bool varstatus = false, status = false;
 	LexItem t;
 	Value retVal;
-	string identString = t.GetLexeme();
-	Token type = SymTable[identString];
-	//idk what to put in there i think t makes sense
+
 	varstatus = Var( in, line, t);
+    string identString = t.GetLexeme();
+    Token type = SymTable[identString];
 	
 	if (varstatus){
 		t = Parser::GetNextToken(in, line);
 		
 		if (t == ASSOP){
-			status = Expr(in, line, retVal);
+            //cout << identString << endl;
+			//cout << TempsResults[identString] << endl;
+            //cout << TempsResults[identString].GetType() << endl;
+            status = Expr(in, line, retVal);
 			
 			if(!status) {
 				ParseError(line, "Missing Expression in Assignment Statement");
@@ -377,6 +380,10 @@ bool AssignStmt(istream& in, int& line) {
 				ParseError(line, "Illegal Assignment Operation");
 				return false;
 			}
+            if ((type == NIDENT || SIDENT) && retVal.IsBool()) {
+                ParseError(line, "Illegal ASsignment of a boolean value to a numeric or string variable");
+                return false;      
+            }
 			else if (retVal.IsBool()) {
 				TempsResults[identString] = retVal;
 			}
@@ -701,7 +708,7 @@ bool UnaryExpr(istream& in, int& line, Value& retVal)
 
 
 //PrimaryExpr ::= IDENT | SIDENT | NIDENT | ICONST | RCONST | SCONST | (Expr)
-bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal) {
+bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal){
 	LexItem tok = Parser::GetNextToken(in, line);
 	if(tok == IDENT){
 		string lexeme = tok.GetLexeme();
@@ -740,6 +747,8 @@ bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal) {
 			ParseError(line, "Using Undefined Variable");
 			return false;	
 		}
+        //cout << lexeme << endl;
+        //cout << TempsResults[lexeme] << endl;
 		retVal = TempsResults[lexeme];
 		if (sign == -1) {
 			if(TempsResults[lexeme].GetReal() > 0 || TempsResults[lexeme].GetInt() > 0) {
@@ -776,7 +785,8 @@ bool PrimaryExpr(istream& in, int& line, int sign, Value & retVal) {
 		return true;
 	}
 	else if (tok == ICONST) {
-		if (sign == 0) {
+		//making these stoi's loses me a test case but gives back the correct value.
+        if (sign == 0) {
 			if (tok.GetLexeme().back() == '.') {
 				retVal = Value(stod(tok.GetLexeme()));
 			}

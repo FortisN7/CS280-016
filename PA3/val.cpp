@@ -880,7 +880,7 @@ Value Value::Repeat(const Value& oper) const {
             //operation
             
             string ans;
-            for (int i = 0; i < oper2; i++) {
+            for (int i = 0; i < oper2-1; i++) {
                 ans += oper1;
             }
             return Value(ans);
